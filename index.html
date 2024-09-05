@@ -1,0 +1,444 @@
+<html><head><base href="https://websim.cybersec.training/cyberwarfare/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球網絡安全攻防模擬器</title>
+<style>
+  body, html {
+    background-color: #0a192f;
+    color: #64ffda;
+  }
+  #map-container {
+    background-image: 
+      linear-gradient(rgba(10, 25, 47, 0.8), rgba(10, 25, 47, 0.8)),
+      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500" viewBox="0 0 1000 500"><path d="M150,50 Q400,150 650,50 T1000,50 V450 Q750,350 500,450 T0,450 V50" fill="none" stroke="%2364ffda" stroke-width="1" opacity="0.2"/></svg>');
+    background-size: cover, 1000px 500px;
+    background-position: center, center;
+    position: relative;
+    width: 100%;
+    height: 100vh;
+  }
+  #overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+  #teams {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    right: 0;
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+  }
+  .team {
+    background-color: rgba(100, 255, 218, 0.1);
+    border: 1px solid #64ffda;
+    box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+    padding: 10px;
+    border-radius: 5px;
+    width: 200px;
+  }
+  #red-team {
+    border-left: 4px solid #ff3e3e;
+  }
+  #blue-team {
+    border-right: 4px solid #4caf50;
+  }
+  #scenario-description {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(100, 255, 218, 0.1);
+    border: 1px solid #64ffda;
+    box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-align: center;
+    z-index: 3;
+    width: 80%;
+    max-width: 800px;
+  }
+  .attack-line {
+    stroke: #ff3e3e;
+    filter: drop-shadow(0 0 5px #ff3e3e);
+    stroke-width: 2;
+    stroke-dasharray: 5;
+  }
+  .defense-shield {
+    fill: none;
+    stroke: #4caf50;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 5px #4caf50);
+    animation: pulse 2s infinite;
+  }
+  .ip-label, .location-label {
+    font-size: 12px;
+    fill: #64ffda;
+    text-shadow: 0 0 5px #64ffda;
+  }
+  @keyframes pulse {
+    0% {
+      stroke-opacity: 1;
+      stroke-width: 2;
+    }
+    50% {
+      stroke-opacity: 0.5;
+      stroke-width: 3;
+    }
+    100% {
+      stroke-opacity: 1;
+      stroke-width: 2;
+    }
+  }
+  #control-panel {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(100, 255, 218, 0.1);
+    border: 1px solid #64ffda;
+    box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+  }
+  #control-panel button {
+    margin: 0 5px;
+    padding: 5px 10px;
+    background-color: #64ffda;
+    color: #0a192f;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  #control-panel button:hover {
+    background-color: #0a192f;
+    color: #64ffda;
+    box-shadow: 0 0 10px #64ffda;
+  }
+  #speed-control {
+    margin-left: 10px;
+    -webkit-appearance: none;
+    background: #0a192f;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity .2s;
+    border: 1px solid #64ffda;
+  }
+  #speed-control:hover {
+    opacity: 1;
+  }
+  #speed-control::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #64ffda;
+    cursor: pointer;
+    border-radius: 50%;
+  }
+  #speed-control::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #64ffda;
+    cursor: pointer;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+<div id="map-container"></div>
+
+<svg id="overlay" viewBox="0 0 1000 500">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </feMerge>
+  </filter>
+  <path d="M0,250 Q250,100 500,250 T1000,250" fill="none" stroke="#64ffda" stroke-width="1" opacity="0.2" filter="url(#glow)"/>
+  <path d="M0,100 Q250,400 500,100 T1000,100" fill="none" stroke="#64ffda" stroke-width="1" opacity="0.2" filter="url(#glow)"/>
+  <path d="M0,400 Q250,200 500,400 T1000,400" fill="none" stroke="#64ffda" stroke-width="1" opacity="0.2" filter="url(#glow)"/>
+</svg>
+
+<div id="teams">
+  <div class="team" id="red-team">
+    <h3>紅隊 (攻擊方)</h3>
+    <p>目前行動: <span id="red-action">等待中</span></p>
+    <p>攻擊IP: <span id="red-ip">未知</span></p>
+    <p>位置: <span id="red-location">未知</span></p>
+  </div>
+  <div class="team" id="blue-team">
+    <h3>藍隊 (防守方)</h3>
+    <p>目前行動: <span id="blue-action">等待中</span></p>
+    <p>防禦IP: <span id="blue-ip">未知</span></p>
+    <p>位置: <span id="blue-location">未知</span></p>
+  </div>
+</div>
+
+<div id="scenario-description">
+  <h4 id="scenario-name">等待攻防開始...</h4>
+  <p id="scenario-detail"></p>
+</div>
+
+<div id="control-panel">
+  <button id="play-pause">暫停</button>
+  <button id="next-scenario">下一場景</button>
+  <label for="speed-control">速度：</label>
+  <input type="range" id="speed-control" min="1" max="10" value="5">
+</div>
+
+<script>
+const scenarios = [
+  {
+    name: "DDoS攻擊",
+    attack: "發起大規模分散式阻斷服務攻擊",
+    defense: "啟動流量過濾和負載均衡",
+    detail: "攻擊方利用大量殭屍電腦向目標服務器發送請求，企圖耗盡服務器資源。防守方通過智能流量分析和動態資源分配來維持服務穩定。"
+  },
+  {
+    name: "釣魚郵件",
+    attack: "發送偽裝的釣魚郵件",
+    defense: "部署郵件過濾系統和員工培訓",
+    detail: "攻擊方偽造看似合法的電子郵件，誘導用戶點擊惡意鏈接。防守方強化郵件安全系統，並提高員工的安全意識。"
+  },
+  {
+    name: "惡意軟體感染",
+    attack: "植入特洛伊木馬",
+    defense: "更新防毒軟體和系統補丁",
+    detail: "攻擊方試圖通過各種渠道將惡意軟件植入目標系統。防守方通過持續更新安全軟件和及時修補系統漏洞來防禦。"
+  },
+  {
+    name: "SQL注入",
+    attack: "注入惡意SQL語句",
+    defense: "實施參數化查詢和輸入驗證",
+    detail: "攻擊方嘗試通過輸入欄位注入惡意SQL代碼。防守方採用安全的編程實踐，如參數化查詢，來預防此類攻擊。"
+  },
+  {
+    name: "中間人攻擊",
+    attack: "攔截和篡改網絡通信",
+    defense: "使用SSL/TLS加密所有通信",
+    detail: "攻擊方嘗試在兩個通信方之間插入自己，以竊聽或修改數據。防守方通過強制使用加密通信協議來確保數據安全。"
+  },
+  {
+    name: "密碼暴力破解",
+    attack: "使用自動化工具猜測密碼",
+    defense: "實施多因素認證和賬戶鎖定策略",
+    detail: "攻擊方使用高速計算機嘗試各種可能的密碼組合。防守方通過增加認證步驟和限制登錄嘗試次數來增強安全性。"
+  },
+  {
+    name: "社交工程",
+    attack: "通過電話冒充IT支持人員",
+    defense: "加強員工安全意識培訓",
+    detail: "攻擊方利用人性弱點，通過偽裝和欺騙來獲取敏感信息。防守方通過定期培訓提高員工的警惕性和識別能力。"
+  },
+  {
+    name: "零日漏洞攻擊",
+    attack: "利用未知的系統漏洞",
+    defense: "部署入侵檢測系統和及時修補",
+    detail: "攻擊方利用尚未公開的軟件漏洞進行攻擊。防守方通過實時監控和快速響應機制來檢測和緩解未知威脅。"
+  },
+  {
+    name: "勒索軟體",
+    attack: "加密重要文件並索要贖金",
+    defense: "實施定期備份和隔離重要系統",
+    detail: "攻擊方通過加密受害者的數據來勒索金錢。防守方通過維護離線備份和網絡隔離來減少潛在損失。"
+  },
+  {
+    name: "供應鏈攻擊",
+    attack: "通過受感染的軟件更新植入後門",
+    defense: "審核第三方供應商和軟件完整性檢查",
+    detail: "攻擊方通過滲透軟件供應鏈來傳播惡意代碼。防守方通過嚴格的供應商管理和軟件驗證流程來確保系統安全。"
+  }
+];
+
+const locations = [
+  {name: "New York", x: 200, y: 180},
+  {name: "London", x: 450, y: 150},
+  {name: "Tokyo", x: 800, y: 200},
+  {name: "Moscow", x: 550, y: 130},
+  {name: "Beijing", x: 750, y: 180},
+  {name: "Sydney", x: 850, y: 350},
+  {name: "Paris", x: 470, y: 170},
+  {name: "Berlin", x: 500, y: 150},
+  {name: "São Paulo", x: 300, y: 350},
+  {name: "Mumbai", x: 650, y: 250},
+  {name: "Singapore", x: 730, y: 280},
+  {name: "Cape Town", x: 500, y: 380},
+  {name: "Toronto", x: 230, y: 180},
+  {name: "Dubai", x: 600, y: 230},
+  {name: "Seoul", x: 780, y: 190},
+  {name: "Bangkok", x: 710, y: 250}
+];
+
+function generateRandomIP() {
+  return `${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
+}
+
+function getRandomLocation() {
+  return locations[Math.floor(Math.random() * locations.length)];
+}
+
+let intervalId;
+let speed = 5;
+let isPlaying = true;
+
+function runRandomScenario() {
+  const overlay = document.getElementById('overlay');
+  const index = Math.floor(Math.random() * scenarios.length);
+  const scenario = scenarios[index];
+  
+  const attackLocation = getRandomLocation();
+  const defenseLocation = getRandomLocation();
+  
+  const attackIP = generateRandomIP();
+  const defenseIP = generateRandomIP();
+  
+  document.getElementById('red-action').textContent = scenario.attack;
+  document.getElementById('blue-action').textContent = scenario.defense;
+  document.getElementById('red-ip').textContent = attackIP;
+  document.getElementById('blue-ip').textContent = defenseIP;
+  document.getElementById('red-location').textContent = attackLocation.name;
+  document.getElementById('blue-location').textContent = defenseLocation.name;
+  
+  document.getElementById('scenario-name').textContent = `${scenario.name} (${attackLocation.name} → ${defenseLocation.name})`;
+  document.getElementById('scenario-detail').textContent = `攻擊方 (${attackIP}): ${scenario.attack}\n防守方 (${defenseIP}): ${scenario.defense}\n\n${scenario.detail}`;
+
+  const oldElements = overlay.querySelectorAll('.attack-line, .defense-shield, .ip-label, .location-label, .attack-icon, .defense-icon');
+  oldElements.forEach(el => el.remove());
+  
+  const attackCoords = { x: attackLocation.x, y: attackLocation.y };
+  const defenseCoords = { x: defenseLocation.x, y: defenseLocation.y };
+
+  const attackLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  attackLine.setAttribute('x1', attackCoords.x);
+  attackLine.setAttribute('y1', attackCoords.y);
+  attackLine.setAttribute('x2', attackCoords.x);
+  attackLine.setAttribute('y2', attackCoords.y);
+  attackLine.setAttribute('class', 'attack-line');  
+  overlay.appendChild(attackLine);
+  
+  const animateLine = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  animateLine.setAttribute('attributeName', 'x2');
+  animateLine.setAttribute('from', attackCoords.x);
+  animateLine.setAttribute('to', defenseCoords.x);
+  animateLine.setAttribute('dur', '2s');
+  animateLine.setAttribute('repeatCount', 'indefinite');
+  attackLine.appendChild(animateLine);
+
+  const animateLine2 = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  animateLine2.setAttribute('attributeName', 'y2');
+  animateLine2.setAttribute('from', attackCoords.y);
+  animateLine2.setAttribute('to', defenseCoords.y);
+  animateLine2.setAttribute('dur', '2s');
+  animateLine2.setAttribute('repeatCount', 'indefinite');
+  attackLine.appendChild(animateLine2);
+
+  const defenseShield = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  defenseShield.setAttribute('cx', defenseCoords.x);
+  defenseShield.setAttribute('cy', defenseCoords.y);
+  defenseShield.setAttribute('r', 30);
+  defenseShield.setAttribute('class', 'defense-shield');
+  overlay.appendChild(defenseShield);
+
+  const attackIcon = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  attackIcon.setAttribute('cx', attackCoords.x);
+  attackIcon.setAttribute('cy', attackCoords.y);
+  attackIcon.setAttribute('r', 5);
+  attackIcon.setAttribute('fill', '#ff3e3e');
+  attackIcon.setAttribute('class', 'attack-icon');
+  attackIcon.setAttribute('filter', 'url(#glow)');
+  overlay.appendChild(attackIcon);
+
+  const attackPulse = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  attackPulse.setAttribute('attributeName', 'r');
+  attackPulse.setAttribute('values', '5;7;5');
+  attackPulse.setAttribute('dur', '1s');
+  attackPulse.setAttribute('repeatCount', 'indefinite');
+  attackIcon.appendChild(attackPulse);
+
+  const defenseIcon = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  defenseIcon.setAttribute('cx', defenseCoords.x);
+  defenseIcon.setAttribute('cy', defenseCoords.y);
+  defenseIcon.setAttribute('r', 5);
+  defenseIcon.setAttribute('fill', '#4caf50');
+  defenseIcon.setAttribute('class', 'defense-icon');
+  defenseIcon.setAttribute('filter', 'url(#glow)');
+  overlay.appendChild(defenseIcon);
+
+  const defensePulse = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  defensePulse.setAttribute('attributeName', 'r');
+  defensePulse.setAttribute('values', '5;7;5');
+  defensePulse.setAttribute('dur', '1s');
+  defensePulse.setAttribute('repeatCount', 'indefinite');
+  defenseIcon.appendChild(defensePulse);
+
+  const attackLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  attackLabel.setAttribute('x', attackCoords.x);
+  attackLabel.setAttribute('y', attackCoords.y - 20);
+  attackLabel.setAttribute('class', 'ip-label');
+  attackLabel.textContent = attackIP;
+  overlay.appendChild(attackLabel);
+
+  const defenseLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  defenseLabel.setAttribute('x', defenseCoords.x);
+  defenseLabel.setAttribute('y', defenseCoords.y - 20);
+  defenseLabel.setAttribute('class', 'ip-label');
+  defenseLabel.textContent = defenseIP;
+  overlay.appendChild(defenseLabel);
+
+  const attackLocationLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  attackLocationLabel.setAttribute('x', attackCoords.x);
+  attackLocationLabel.setAttribute('y', attackCoords.y + 20);
+  attackLocationLabel.setAttribute('class', 'location-label');
+  attackLocationLabel.textContent = attackLocation.name;
+  overlay.appendChild(attackLocationLabel);
+
+  const defenseLocationLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  defenseLocationLabel.setAttribute('x', defenseCoords.x);
+  defenseLocationLabel.setAttribute('y', defenseCoords.y + 20);
+  defenseLocationLabel.setAttribute('class', 'location-label');
+  defenseLocationLabel.textContent = defenseLocation.name;
+  overlay.appendChild(defenseLocationLabel);
+}
+
+function updateInterval() {
+  clearInterval(intervalId);
+  if (isPlaying) {
+    intervalId = setInterval(runRandomScenario, (11 - speed) * 1000);
+  }
+}
+
+document.getElementById('play-pause').addEventListener('click', function() {
+  isPlaying = !isPlaying;
+  this.textContent = isPlaying ? '暫停' : '播放';
+  updateInterval();
+});
+
+document.getElementById('next-scenario').addEventListener('click', function() {
+  runRandomScenario();
+});
+
+document.getElementById('speed-control').addEventListener('input', function() {
+  speed = parseInt(this.value);
+  updateInterval();
+});
+
+runRandomScenario();
+updateInterval();
+</script>
+</body>
+</html>
